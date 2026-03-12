@@ -84,9 +84,7 @@ contract SentioTokenOnBSC is OFT, ERC20Permit, Pausable, AccessControl {
     /// @param amount The amount of tokens being transferred.
     function _update(address from, address to, uint256 amount) internal override {
         if (paused()) {
-            bool minting = from == address(0);
-            bool whitelistTransfer = _isWhitelisted[from] && _isWhitelisted[to];
-            require(minting || whitelistTransfer, "paused and not whitelisted");
+            require(from == address(0) || (_isWhitelisted[from] && _isWhitelisted[to]), "paused and not whitelisted");
         }
 
         super._update(from, to, amount);
