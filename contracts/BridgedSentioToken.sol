@@ -10,6 +10,7 @@ import {
     IOptimismMintableERC20,
     ILegacyMintableERC20
 } from "@eth-optimism/contracts-bedrock/src/universal/IOptimismMintableERC20.sol";
+import { ERC20Burnable } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
 /**
  * @title BridgedSentioToken
@@ -17,7 +18,7 @@ import {
  * @dev Implements IOptimismMintableERC20 for bridge compatibility.
  *      Tokens can be minted/burned by the Optimism Standard Bridge.
  */
-contract BridgedSentioToken is ERC20, Ownable, ERC20Permit, ERC165, IOptimismMintableERC20, ILegacyMintableERC20 {
+contract BridgedSentioToken is ERC20, Ownable, ERC20Permit, ERC165, IOptimismMintableERC20, ILegacyMintableERC20, ERC20Burnable {
     /// @notice Address of the corresponding token on the remote chain (L1).
     address public immutable REMOTE_TOKEN;
 
