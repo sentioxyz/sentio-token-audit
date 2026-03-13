@@ -6,10 +6,11 @@ import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol"
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { OFT } from "@layerzerolabs/oft-evm/contracts/OFT.sol";
+import { ERC20Burnable } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
 /// @title Sentio Token Contract
 /// @notice Implements an ERC20 token with a cap, pausability, ownership, and a whitelist feature.
-contract SentioTokenOnBSC is OFT, ERC20Permit, Pausable, AccessControl {
+contract SentioTokenOnBSC is OFT, ERC20Permit, Pausable, AccessControl, ERC20Burnable {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
