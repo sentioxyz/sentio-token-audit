@@ -1,59 +1,57 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.30;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
-import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { OFT } from "@layerzerolabs/oft-evm/contracts/OFT.sol";
 import { ERC20Burnable } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
-/// @title Sentio Token Contract
-/// @notice Implements an ERC20 token with a cap, pausability, ownership, and a whitelist feature.
-contract SentioTokenOnBSC is OFT, ERC20Permit, Pausable, AccessControl, ERC20Burnable {
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-
-    uint256 public immutable cap;
-
-    uint256 public totalMinted;
+/// @title Sentio Token Contract on BSC
+/// @notice Implements an ERC20 OFT token with a time-locked transfer and whitelist feature.
+contract SentioTokenOnBSC is OFT, ERC20Permit, ERC20Burnable {
+    // Timestamp after which transfers are allowed for non-whitelisted users
+    uint256 public transferAllowedTimestamp;
+    uint256 internal ETA;
 
     mapping(address => bool) private _isWhitelisted;
 
-    event WhitelistUpdated(address indexed account, bool isWhitelisted);
+    event NewTransferAllowedTimestamp(uint256 newTimestamp);
+    event WhitelistAdded(address indexed account);
+    event WhitelistRemoved(address indexed account);
 
     constructor(
         address _lzEndpoint,
         address _delegate,
-        uint256 _cap,
-        address admin,
-        address pauser
+        address _tokenOwner,
+        uint256 totalSupply,
+        uint256 transferAllowedTimestamp_
     ) OFT("Sentio Token", "ST", _lzEndpoint, _delegate) ERC20Permit("Sentio Token") Ownable(_delegate) {
-        require(_cap > 0, "cap must be greater than 0");
-        cap = _cap;
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(PAUSER_ROLE, pauser);
-        _pause();
+        require(transferAllowedTimestamp_ >= block.timestamp, "Incorrect timestamp");
+        transferAllowedTimestamp = transferAllowedTimestamp_;
+        _isWhitelisted[_tokenOwner] = true;
+        _mint(_tokenOwner, totalSupply);
     }
 
-    /// @notice Allows the pause controller address to pause all token transfers for non-whitelisted addresses.
-    function pause() external onlyRole(PAUSER_ROLE) {
-        _pause();
+    /// @notice Set the new timestamp after which transfers will be allowed for non-whitelisted addresses.
+    /// @param newTimestamp The new timestamp.
+    function setTransferAllowedTimestamp(uint256 newTimestamp) external onlyOwner {
+        if (transferAllowedTimestamp > block.timestamp && ETA == 0) {
+            transferAllowedTimestamp = newTimestamp;
+        } else {
+            if (ETA == 0) {
+                ETA = transferAllowedTimestamp + 1 days;
+            }
+            require(newTimestamp <= ETA, "The timestamp exceeds the ETA");
+            transferAllowedTimestamp = newTimestamp;
+        }
+
+        emit NewTransferAllowedTimestamp(newTimestamp);
     }
 
-    /// @notice Allows the pause controller address to unpause the token transfers.
-    function unpause() external onlyRole(PAUSER_ROLE) {
-        _unpause();
-    }
-
-    /// @notice Allows the minter to mint new tokens, up to the cap. The cap only applies to minting who has the MINTER_ROLE, not to OFT minting.
-    /// the OTF burns tokens on the source chain and mints them on the destination chain, this is by design.  
+    /// @notice Allows the minter to mint new tokens. The OFT burns on source and mints on destination by design.
     /// @param to The address that will receive the minted tokens.
     /// @param amount The amount of tokens to mint.
-    function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) {
-        require(totalMinted + amount <= cap, "cap exceeded");
-        totalMinted += amount;
+    function mint(address to, uint256 amount) external onlyOwner {
         _mint(to, amount);
     }
 
@@ -65,27 +63,33 @@ contract SentioTokenOnBSC is OFT, ERC20Permit, Pausable, AccessControl, ERC20Bur
 
     /// @notice Adds an address to the whitelist.
     /// @param account The address to add to the whitelist.
-    function addToWhitelist(address account) external onlyRole(PAUSER_ROLE) {
-        require(account != address(0), "cannot whitelist the zero address");
+    function addToWhitelist(address account) external onlyOwner {
+        require(account != address(0), "Zero address");
+        require(!_isWhitelisted[account], "Already whitelisted");
         _isWhitelisted[account] = true;
-        emit WhitelistUpdated(account, true);
+        emit WhitelistAdded(account);
     }
 
     /// @notice Removes an address from the whitelist.
     /// @param account The address to remove from the whitelist.
-    function removeFromWhitelist(address account) external onlyRole(PAUSER_ROLE) {
-        require(account != address(0), "cannot un-whitelist the zero address");
+    function removeFromWhitelist(address account) external onlyOwner {
+        require(account != address(0), "Zero address");
+        require(_isWhitelisted[account], "Not whitelisted");
         _isWhitelisted[account] = false;
-        emit WhitelistUpdated(account, false);
+        emit WhitelistRemoved(account);
     }
 
-    /// @notice Overrides the _update function to enforce the whitelist and pause functionality.
+    /// @notice Overrides the _update function to enforce time lock and whitelist.
     /// @param from The address from which tokens are being transferred.
     /// @param to The address to which tokens are being transferred.
     /// @param amount The amount of tokens being transferred.
     function _update(address from, address to, uint256 amount) internal override {
-        if (paused()) {
-            require(from == address(0) || (_isWhitelisted[from] && _isWhitelisted[to]), "paused and not whitelisted");
+        if (block.timestamp < transferAllowedTimestamp) {
+            // Allow mint: from = address(0) skips whitelist check
+            // burn is still restricted - requires whitelist
+            if (from != address(0)) {
+                require(_isWhitelisted[from], "Not allowed");
+            }
         }
 
         super._update(from, to, amount);
