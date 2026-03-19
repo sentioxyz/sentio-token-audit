@@ -48,13 +48,6 @@ contract SentioTokenOnBSC is OFT, ERC20Permit, ERC20Burnable {
         emit NewTransferAllowedTimestamp(newTimestamp);
     }
 
-    /// @notice Allows the minter to mint new tokens. The OFT burns on source and mints on destination by design.
-    /// @param to The address that will receive the minted tokens.
-    /// @param amount The amount of tokens to mint.
-    function mint(address to, uint256 amount) external onlyOwner {
-        _mint(to, amount);
-    }
-
     /// @notice Returns true if the account is whitelisted.
     /// @param account The address to check.
     function isWhitelisted(address account) external view returns (bool) {
