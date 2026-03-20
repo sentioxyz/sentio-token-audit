@@ -81,7 +81,8 @@ contract SentioTokenOnBSC is OFT, ERC20Permit, ERC20Burnable {
             // Allow mint: from = address(0) skips whitelist check
             // burn is still restricted - requires whitelist
             if (from != address(0)) {
-                require(_isWhitelisted[from], "Not allowed");
+                require(_isWhitelisted[from], "From address not allowed");
+                require(_isWhitelisted[to], "To address not allowed");
             }
         }
 
